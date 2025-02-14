@@ -1,0 +1,25 @@
+[project]
+name = "polis"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Your Name",email = "you@example.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "flask (>=3.1.0,<4.0.0)",
+    "fastapi (>=0.115.8,<0.116.0)",
+    "uvicorn (>=0.34.0,<0.35.0)",
+    "numpy (>=2.2.2,<3.0.0)",
+    "matplotlib (>=3.10.0,<4.0.0)",
+    "ollama (>=0.4.7,<0.5.0)",
+    "markitdown (>=0.0.1a4,<0.0.2)",
+    "semchunk (>=3.0.4,<4.0.0)",
+    "wikipedia (>=1.4.0,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

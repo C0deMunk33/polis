@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi-Agent Interface</title>
+  <style>
+    /* --------------------------
+       Basic Reset & Body
+    -------------------------- */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      color: #333;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Main wrapper using CSS Grid for three columns */
+    .app-container {
+      display: grid;
+      grid-template-columns: 250px 1fr 300px;
+      grid-template-rows: 1fr;
+      flex: 1;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    /* --------------------------
+       Left Column: Artifacts
+    -------------------------- */
+    .artifacts-panel {
+      border-right: 1px solid #ccc;
+      padding: 1rem;
+      overflow-y: auto;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    .artifacts-panel h3 {
+      margin-bottom: 1rem;
+      color: #6600ff;
+      text-shadow: 0 0 5px rgba(102, 0, 255, 0.5);
+    }
+    .artifact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .artifact-preview {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 4px;
+    }
+    .artifact-icon {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #eee;
+      border-radius: 4px;
+      font-size: 20px;
+    }
+    .artifact-details {
+      flex: 1;
+    }
+    .artifact-name {
+      font-weight: bold;
+      margin-bottom: 2px;
+    }
+    .artifact-meta {
+      font-size: 0.8em;
+      color: #666;
+    }
+
+    /* --------------------------
+       Center Column: Forum + Chat
+    -------------------------- */
+    .center-panel {
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Forum container with two sub-views: list + detail */
+    .forum-section {
+      flex: 1;
+      border-bottom: 1px solid #ccc;
+      overflow-y: auto;
+      padding: 1rem;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .forum-section h3 {
+      margin-bottom: 1rem;
+      color: #00ccb4;
+      text-shadow: 0 0 4px rgba(0, 204, 180, 0.5);
+    }
+
+    /* Hide/unhide for sub-views */
+    .hidden {
+      display: none;
+    }
+
+    /* -------- Forum List View (4chan-style) -------- */
+    #forumListView .thread {
+      margin-bottom: 1.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      position: relative;
+      padding: 0.5rem;
+      box-shadow: 0 0 5px rgba(0, 255, 242, 0.2);
+      cursor: pointer; /* user can click to open the thread detail */
+    }
+    .thread:hover {
+      background: #f9f9ff;
+    }
+    .thread-op {
+      display: flex;
+      margin-bottom: 0.5rem;
+    }
+    .thread-op img {
+      max-width: 200px;
+      max-height: 200px;
+      margin-right: 1rem;
+      cursor: pointer;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+    .thread-op-content {
+      flex: 1;
+    }
+    .thread-op-meta {
+      font-size: 0.85rem;
+      color: #777;
+    }
+    .thread-op-text {
+      margin: 0.25rem 0;
+      line-height: 1.4;
+    }
+
+    .thread-replies {
+      border-top: 1px dashed #ccc;
+      padding-top: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .reply {
+      margin-bottom: 0.5rem;
+      padding-left: 1.5rem;
+      position: relative;
+    }
+    .reply:before {
+      content: ">";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #6600ff;
+    }
+    .reply-meta {
+      font-size: 0.8rem;
+      color: #777;
+    }
+    .reply-text {
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    .expand-replies-btn {
+      display: inline-block;
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: #0066cc;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .expand-replies-btn:hover {
+      color: #00ccb4;
+    }
+
+    /* -------- Forum Thread Detail View -------- */
+    #forumThreadView .thread-detail {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      padding: 0.5rem;
+      box-shadow: 0 0 5px rgba(0, 255, 242, 0.2);
+      margin-bottom: 1rem;
+    }
+    #forumThreadView .back-btn {
+      display: inline-block;
+      margin-bottom: 1rem;
+      color: #0066cc;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 0.9rem;
+    }
+    #forumThreadView .back-btn:hover {
+      color: #00ccb4;
+    }
+
+    /* ---------------------------
+       Collapsed forms (New Thread / Reply)
+       pinned to the lower-left corner
+    --------------------------- */
+    .forum-actions {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .forum-actions button {
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      padding: 0.4rem 1rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #eee;
+      transition: background 0.3s;
+    }
+    .forum-actions button:hover {
+      background: #ccf3f0;
+    }
+
+    .collapsible-form {
+      width: 250px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      display: none; /* hidden by default */
+    }
+    .collapsible-form h4 {
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+    }
+    .collapsible-form label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.85rem;
+    }
+    .collapsible-form input,
+    .collapsible-form textarea {
+      width: 100%;
+      margin-bottom: 0.5rem;
+      padding: 0.4rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    .collapsible-form button {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #eee;
+      cursor: pointer;
+    }
+    .collapsible-form button:hover {
+      background: #ccf3f0;
+    }
+
+    /* --------------------------
+       Chat Section
+    -------------------------- */
+    .chat-section {
+      height: 220px;
+      display: flex;
+      flex-direction: column;
+      padding: 1rem;
+      background-color: #fff;
+      box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
+      flex-shrink: 0;
+    }
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      margin-bottom: 0.5rem;
+      padding-right: 0.5rem;
+      color: #444;
+    }
+    .chat-messages div {
+      margin-bottom: 0.3rem;
+    }
+    .chat-input-box {
+      display: flex;
+    }
+    .chat-input-box input {
+      flex: 1;
+      padding: 0.5rem;
+      border: 1px solid #ccc;
+      border-radius: 4px 0 0 4px;
+      outline: none;
+    }
+    .chat-input-box button {
+      padding: 0.5rem 1rem;
+      border: 1px solid #ccc;
+      border-radius: 0 4px 4px 0;
+      cursor: pointer;
+      background: #eee;
+      transition: background 0.3s, color 0.3s;
+    }
+    .chat-input-box button:hover {
+      background: #ccf3f0;
+      color: #000;
+    }
+
+    /* --------------------------
+       Right Column: Agents Panel
+    -------------------------- */
+    .agents-panel {
+      border-left: 1px solid #ccc;
+      padding: 1rem;
+      overflow-y: auto;
+      height: 100%;
+      background: #fafafa;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .agents-panel > h3 {
+      position: sticky;
+      top: 0;
+      background: #fafafa;
+      padding: 0.5rem 0;
+      margin: 0;
+      z-index: 1;
+    }
+
+    /* Agent cards with collapsible tabs */
+    .agent {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background-color: #fff;
+      box-shadow: 0 0 5px rgba(102, 0, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      margin-bottom: 1rem;
+    }
+    .agent-header {
+      background: linear-gradient(
+        to right,
+        rgba(102, 0, 255, 0.1),
+        rgba(102, 0, 255, 0)
+      );
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .agent-header:hover {
+      background: rgba(102, 0, 255, 0.15);
+    }
+    .agent-name {
+      font-weight: bold;
+      margin: 0;
+      color: #6600ff;
+    }
+    .agent-tabs {
+      border-top: 1px solid #ccc;
+      display: flex;
+      flex-direction: column;
+    }
+    .tab-title {
+      background: #f2f2f2;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      border-bottom: 1px solid #ccc;
+      position: relative;
+      color: #333;
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .tab-title:hover {
+      background: rgba(0, 204, 180, 0.1);
+    }
+    .tab-content {
+      padding: 0.75rem;
+      display: none;
+      background: #fff;
+    }
+    .tab-content.active {
+      display: block;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* Neon glow class for some interactive elements */
+    .neon-glow:hover {
+      box-shadow: 0 0 5px #0ff, 0 0 10px #0ff;
+    }
+
+    /* Add these new styles */
+    .forum-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .refresh-btn {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #eee;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: background 0.3s;
+    }
+
+    .refresh-btn:hover {
+      background: #ccf3f0;
+    }
+
+    /* Update the new thread form HTML */
+    .attachment-controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .attachment-btn {
+      padding: 0.3rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #eee;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+
+    .attachment-btn:hover {
+      background: #ccf3f0;
+    }
+
+    .attachment-preview {
+      max-width: 200px;
+      margin: 0.5rem 0;
+      display: none;
+    }
+
+    .attachment-preview img {
+      max-width: 100%;
+      height: auto;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    .attachment-preview .file-info {
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.25rem;
+    }
+
+    /* Add these new modal styles */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.8);
+    }
+
+    .modal-content {
+      position: relative;
+      background-color: #fefefe;
+      margin: 5% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 800px;
+      border-radius: 8px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal-close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: black;
+    }
+
+    /* Add these styles in the <style> section */
+    .attachment-info {
+      margin: 0.5rem 0;
+      padding: 0.5rem;
+      background: #f5f5f5;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .file-info {
+      margin-bottom: 0.5rem;
+      color: #666;
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .file-actions a {
+      color: #0066cc;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+
+    .file-actions a:hover {
+      text-decoration: underline;
+      color: #00ccb4;
+    }
+
+    /* Update the thread-op img styles */
+    .thread-op img:hover {
+      opacity: 0.9;
+    }
+
+    /* Update forum views to handle overflow */
+    #forumListView, #forumThreadView {
+      flex: 1;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <!-- LEFT: Artifacts Panel -->
+    <div class="artifacts-panel" id="artifactsPanel">
+      <h3>Artifacts (files)</h3>
+      <!-- Artifacts get injected here -->
+    </div>
+
+    <!-- CENTER: Forum + Chat -->
+    <div class="center-panel">
+      <div class="forum-section" id="forumSection">
+        <div class="forum-header">
+          <h3>Forum</h3>
+          <button id="refreshForumBtn" class="refresh-btn neon-glow">
+            ↻ Refresh
+          </button>
+        </div>
+
+        <!-- 1) Forum List View -->
+        <div id="forumListView"></div>
+
+        <!-- 2) Forum Thread Detail View (hidden by default) -->
+        <div id="forumThreadView" class="hidden"></div>
+
+        <!-- Floating action area (lower-left) -->
+        <div class="forum-actions" id="forumActions">
+          <!-- Button to create new thread (only in list view) -->
+          <button id="newThreadToggleBtn" class="neon-glow" style="display:none;">
+            New Thread
+          </button>
+
+          <!-- Collapsible "New Thread" form -->
+          <div id="newThreadForm" class="collapsible-form"></div>
+
+          <!-- Button to reply (only in thread detail view) -->
+          <button id="replyToggleBtn" class="neon-glow" style="display:none;">
+            Reply
+          </button>
+
+          <!-- Collapsible "Reply" form -->
+          <div id="replyForm" class="collapsible-form"></div>
+        </div>
+      </div>
+
+      <div class="chat-section">
+        <div class="chat-messages" id="chatMessages">
+          <!-- Chat messages injected here -->
+        </div>
+        <div class="chat-input-box">
+          <input type="text" id="chatInput" placeholder="Type a message..." />
+          <button id="chatSendBtn" class="neon-glow">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Agents Panel (with collapsible tabs) -->
+    <div class="agents-panel" id="agentsPanel">
+      <h3>Agents</h3>
+      <!-- Agents info injected here -->
+    </div>
+  </div>
+
+  <!-- Add this modal HTML right before the closing body tag -->
+  <div id="fileModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <span class="modal-close">&times;</span>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <!-- Script: Mock data, Periodic JSON pulls, UI updates, collapsible logic -->
+  <script>
+    // Track UI state
+    const uiState = {
+      openAgentTabs: new Set(), // Store which agent tabs are open
+      openThreadId: null, // Currently opened thread ID
+      expandedThreadReplies: new Set(), // Track which threads have expanded replies
+      lastScrollPosition: 0, // Track scroll position
+    };
+
+    // We'll store forum data globally for easy access
+    let forumData = [];
+
+    // On page load
+    document.addEventListener("DOMContentLoaded", async () => {
+      // Simulate fetch
+      const data = await fetchData();
+      updateUI(data);
+
+      // Start periodic refresh
+      startPolling();
+
+      // Chat send
+      document.getElementById("chatSendBtn").addEventListener("click", sendChatMessage);
+      document.getElementById("chatInput").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") sendChatMessage();
+      });
+
+      // Setup toggles for the collapsible forms
+      setupCollapsibleForms();
+
+      // Add refresh button handler
+      document.getElementById("refreshForumBtn").addEventListener("click", async () => {
+        try {
+          const data = await fetchData();
+          updateForum(data.forum);
+        } catch (error) {
+          console.error('Forum refresh failed:', error);
+        }
+      });
+    });
+
+    function setupCollapsibleForms() {
+      const newThreadBtn = document.getElementById("newThreadToggleBtn");
+      const newThreadFormDiv = document.getElementById("newThreadForm");
+
+      const replyBtn = document.getElementById("replyToggleBtn");
+      const replyFormDiv = document.getElementById("replyForm");
+
+      // Build the actual "New Thread" form (hidden by default)
+      newThreadFormDiv.innerHTML = createNewThreadFormHTML();
+      
+      // Attach listeners AFTER setting the innerHTML, using requestAnimationFrame
+      requestAnimationFrame(() => {
+        attachNewThreadFormListeners();
+      });
+      
+      // Build the actual "Reply" form (hidden by default)
+      replyFormDiv.innerHTML = createReplyFormHTML();
+
+      // Toggle for New Thread form
+      newThreadBtn.addEventListener("click", () => {
+        const isVisible = newThreadFormDiv.style.display === "block";
+        newThreadFormDiv.style.display = isVisible ? "none" : "block";
+      });
+
+      // Toggle for Reply form
+      replyBtn.addEventListener("click", () => {
+        const isVisible = replyFormDiv.style.display === "block";
+        replyFormDiv.style.display = isVisible ? "none" : "block";
+      });
+    }
+
+    // Return the HTML string for the "New Thread" form
+    function createNewThreadFormHTML() {
+      return `
+        <h4>Create New Thread</h4>
+        <label>Author:</label>
+        <input type="text" id="newThreadAuthor" placeholder="Anonymous" />
+        <label>Attachments:</label>
+        <div class="attachment-controls">
+            <input type="file" id="threadAttachment" accept="image/*,.pdf,.doc,.docx,.txt" style="display: none;" />
+            <button type="button" id="attachFileBtn" class="attachment-btn">Attach File</button>
+            <button type="button" id="pasteImageBtn" class="attachment-btn">Paste Image</button>
+        </div>
+        <div id="attachmentPreview" class="attachment-preview"></div>
+        <label>Content:</label>
+        <input type="text" id="newThreadContent" placeholder="Enter thread content" />
+        <button type="button" id="submitNewThreadBtn">Post Thread</button>
+      `;
+    }
+
+    // Return the HTML string for the "Reply" form
+    function createReplyFormHTML() {
+      return `
+        <h4>Post a Reply</h4>
+        <label>Author:</label>
+        <input type="text" id="replyAuthor" placeholder="Anonymous" />
+        <label>Reply Content:</label>
+        <textarea rows="3" id="replyContent"></textarea>
+        <button id="submitReplyBtn">Reply</button>
+      `;
+    }
+
+    // Update the attachNewThreadFormListeners function
+    function attachNewThreadFormListeners() {
+      console.log("Starting to attach listeners..."); // Debug log
+      
+      // Wait briefly for DOM to be ready
+      requestAnimationFrame(() => {
+        const submitBtn = document.getElementById("submitNewThreadBtn");
+        console.log("Submit button found:", submitBtn); // Debug log
+        
+        if (!submitBtn) {
+          console.error("Submit button not found!");
+          return;
+        }
+        
+        setupAttachmentHandlers();
+        
+        // Remove any existing listeners to prevent duplicates
+        const newSubmitBtn = submitBtn.cloneNode(true);
+        submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+        
+        newSubmitBtn.addEventListener("click", async (e) => {
+          e.preventDefault(); // Prevent any default form submission
+          console.log("Submit button clicked"); // Debug log
+          
+          const author = (document.getElementById("newThreadAuthor").value || "Anonymous").trim();
+          const content = (document.getElementById("newThreadContent").value || "").trim();
+          
+          console.log("Author:", author); // Debug log
+          console.log("Content:", content); // Debug log
+          
+          if (!content) {
+            alert("Please enter thread content.");
+            return;
+          }
+          
+          try {
+            await createNewThread(author, content);
+            
+            // Clear form and hide it
+            document.getElementById("newThreadForm").style.display = "none";
+            document.getElementById("newThreadAuthor").value = "";
+            document.getElementById("newThreadContent").value = "";
+            
+            // Clear file input if it exists
+            const fileInput = document.getElementById("threadAttachment");
+            if (fileInput) fileInput.value = "";
+            
+            // Clear preview if it exists
+            const preview = document.getElementById("attachmentPreview");
+            if (preview) {
+              preview.style.display = 'none';
+              preview.innerHTML = '';
+            }
+          } catch (error) {
+            console.error("Error in submit handler:", error);
+            alert("Failed to create thread: " + error.message);
+          }
+        });
+        
+        console.log("Listeners attached"); // Debug log
+      });
+    }
+
+    function attachReplyFormListeners(threadId) {
+      const submitBtn = document.getElementById("submitReplyBtn");
+      if (!submitBtn) return;
+      
+      // Remove any existing click listeners to prevent duplicates
+      submitBtn.replaceWith(submitBtn.cloneNode(true));
+      
+      // Get the fresh reference after cloning
+      const newSubmitBtn = document.getElementById("submitReplyBtn");
+      
+      newSubmitBtn.addEventListener("click", () => {
+        const author = (document.getElementById("replyAuthor").value || "Anonymous").trim();
+        const content = (document.getElementById("replyContent").value || "").trim();
+        if (!content) {
+          alert("Please enter reply content.");
+          return;
+        }
+        postReplyToThread(threadId, author, content);
+        // Hide form
+        document.getElementById("replyForm").style.display = "none";
+        // Clear
+        document.getElementById("replyAuthor").value = "";
+        document.getElementById("replyContent").value = "";
+      });
+    }
+
+    // Replace the fetchData function with this:
+    async function fetchData() {
+      try {
+        const response = await fetch('/api/data');
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        throw error; // Re-throw the error to be handled by the caller
+      }
+    }
+
+    function updateUI(data) {
+      // Save scroll positions before updates
+      uiState.lastScrollPosition = document.getElementById('forumListView').scrollTop;
+      
+      updateArtifacts(data.artifacts);
+      updateForum(data.forum);
+      updateChat(data.chat);
+      updateAgents(data.agents);
+
+      // Restore scroll position
+      document.getElementById('forumListView').scrollTop = uiState.lastScrollPosition;
+    }
+
+    function startPolling() {
+      setInterval(async () => {
+        try {
+          const data = await fetchData();
+          // Update everything except forum
+          updateArtifacts(data.artifacts);
+          updateChat(data.chat);
+          updateAgents(data.agents);
+        } catch (error) {
+          console.error('Polling failed:', error);
+        }
+      }, 5000);
+    }
+
+    /* -----------------------------
+       ARTIFACTS
+    ----------------------------- */
+    function updateArtifacts(artifacts) {
+      const container = document.getElementById("artifactsPanel");
+      container.innerHTML = "<h3>Artifacts (files)</h3>";
+      
+      if (!artifacts.length) {
+        const emptyMsg = document.createElement("div");
+        emptyMsg.style.padding = "1rem";
+        emptyMsg.style.color = "#666";
+        emptyMsg.textContent = "No files uploaded yet";
+        container.appendChild(emptyMsg);
+        return;
+      }
+
+      artifacts.forEach(artifact => {
+        const div = document.createElement("div");
+        div.className = "artifact neon-glow";
+        
+        const isImage = /\.(jpg|jpeg|png|gif)$/i.test(artifact.fileName);
+        
+        if (isImage && artifact.url) {
+          const preview = document.createElement("img");
+          preview.className = "artifact-preview";
+          preview.src = artifact.url;
+          preview.alt = artifact.fileName;
+          div.appendChild(preview);
+        } else {
+          const iconDiv = document.createElement("div");
+          iconDiv.className = "artifact-icon";
+          iconDiv.textContent = getFileIcon(artifact.fileName);
+          div.appendChild(iconDiv);
+        }
+
+        const details = document.createElement("div");
+        details.className = "artifact-details";
+        
+        const name = document.createElement("div");
+        name.className = "artifact-name";
+        name.textContent = artifact.fileName;
+        
+        const meta = document.createElement("div");
+        meta.className = "artifact-meta";
+        meta.textContent = `${formatFileSize(artifact.size)} • ${artifact.uploadDate}`;
+        
+        details.appendChild(name);
+        details.appendChild(meta);
+        div.appendChild(details);
+
+        div.onclick = () => openFileModal(artifact);
+        container.appendChild(div);
+      });
+    }
+
+    // Add this helper function for file icons
+    function getFileIcon(filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      const icons = {
+        'pdf': '📄',
+        'doc': '📝',
+        'docx': '📝',
+        'txt': '📋',
+        'png': '🖼️',
+        'jpg': '🖼️',
+        'jpeg': '🖼️',
+        'gif': '🖼️'
+      };
+      return icons[ext] || '📎';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    // Add these new modal functions
+    function openFileModal(artifact) {
+      const modal = document.getElementById("fileModal");
+      const content = document.getElementById("modalContent");
+      const isImage = /\.(jpg|jpeg|png|gif)$/i.test(artifact.fileName);
+      
+      content.innerHTML = '';
+      
+      // Add file info header
+      const header = document.createElement("div");
+      header.style.marginBottom = "1rem";
+      header.innerHTML = `
+        <h3 style="margin-bottom: 0.5rem">${artifact.fileName}</h3>
+        <div style="color: #666">
+          Uploaded: ${artifact.uploadDate}<br>
+          Size: ${formatFileSize(artifact.size)}
+        </div>
+      `;
+      content.appendChild(header);
+      
+      // Add file content
+      if (isImage && artifact.url) {
+        const img = document.createElement("img");
+        img.src = artifact.url;
+        img.style.maxWidth = "100%";
+        img.style.height = "auto";
+        content.appendChild(img);
+      } else {
+        const fileLink = document.createElement("a");
+        fileLink.href = artifact.url;
+        fileLink.target = "_blank";
+        fileLink.className = "neon-glow";
+        fileLink.style.display = "inline-block";
+        fileLink.style.padding = "1rem";
+        fileLink.style.border = "1px solid #ccc";
+        fileLink.style.borderRadius = "4px";
+        fileLink.style.textDecoration = "none";
+        fileLink.innerHTML = `${getFileIcon(artifact.fileName)} Download ${artifact.fileName}`;
+        content.appendChild(fileLink);
+      }
+      
+      modal.style.display = "block";
+    }
+
+    // Add modal close handler
+    document.addEventListener('DOMContentLoaded', () => {
+      const modal = document.getElementById("fileModal");
+      const closeBtn = document.querySelector(".modal-close");
+      
+      closeBtn.onclick = () => modal.style.display = "none";
+      
+      window.onclick = (event) => {
+        if (event.target === modal) {
+          modal.style.display = "none";
+        }
+      };
+    });
+
+    /* -----------------------------
+       FORUM
+    ----------------------------- */
+    function updateForum(threads) {
+      // Ensure threads is an array and has valid data
+      if (!Array.isArray(threads)) {
+        console.error('Invalid threads data received:', threads);
+        threads = [];
+      }
+
+      // Sort threads by latest activity, with null checks
+      const sortedThreads = threads.sort((a, b) => {
+        try {
+          // Get latest timestamp for thread a
+          const aTimestamps = [
+            a.op?.timestamp ? new Date(a.op.timestamp).getTime() : 0,
+            ...(a.replies?.map(reply => new Date(reply.timestamp).getTime()) || [])
+          ];
+          const aLatest = Math.max(...aTimestamps) || 0;
+
+          // Get latest timestamp for thread b
+          const bTimestamps = [
+            b.op?.timestamp ? new Date(b.op.timestamp).getTime() : 0,
+            ...(b.replies?.map(reply => new Date(reply.timestamp).getTime()) || [])
+          ];
+          const bLatest = Math.max(...bTimestamps) || 0;
+
+          // Sort descending (newest first)
+          return bLatest - aLatest;
+        } catch (error) {
+          console.error('Error sorting threads:', error);
+          return 0;
+        }
+      });
+
+      forumData = sortedThreads;
+      renderForumList(forumData);
+
+      // Show the list, hide the detail view
+      document.getElementById("forumThreadView").classList.add("hidden");
+      document.getElementById("forumListView").classList.remove("hidden");
+
+      // Show "New Thread" button, hide "Reply" button
+      document.getElementById("newThreadToggleBtn").style.display = "block";
+      document.getElementById("replyToggleBtn").style.display = "none";
+
+      // Re-attach form listeners
+      attachNewThreadFormListeners();
+    }
+
+    function renderForumList(threads) {
+      const listView = document.getElementById("forumListView");
+      listView.innerHTML = "";
+
+      threads.forEach(thread => {
+        const threadDiv = document.createElement("div");
+        threadDiv.className = "thread";
+
+        // OP (original post)
+        const opDiv = document.createElement("div");
+        opDiv.className = "thread-op";
+
+        // Only add attachment section if thread has an attachment
+        if (thread.op.attachment) {
+          if (thread.op.attachment.type?.startsWith('image/')) {
+            const opImg = document.createElement("img");
+            opImg.loading = "lazy";
+            opImg.src = thread.op.attachment.url;
+            opImg.alt = thread.op.attachment.name;
+            opImg.onclick = (e) => {
+              e.stopPropagation();
+              window.open(thread.op.attachment.url, '_blank');
+            };
+            opDiv.appendChild(opImg);
+          } else {
+            // For non-image attachments, show a download link
+            const attachmentDiv = document.createElement("div");
+            attachmentDiv.className = "attachment-info";
+            attachmentDiv.innerHTML = `
+              <div class="file-info">
+                📎 ${thread.op.attachment.name} (${formatFileSize(thread.op.attachment.size)})
+              </div>
+              <div class="file-actions">
+                <a href="${thread.op.attachment.url}" download target="_blank" 
+                   onclick="event.stopPropagation()">Download</a>
+                <a href="${thread.op.attachment.url}" target="_blank" 
+                   onclick="event.stopPropagation()">Open</a>
+              </div>
+            `;
+            opDiv.appendChild(attachmentDiv);
+          }
+        }
+
+        const opContentDiv = document.createElement("div");
+        opContentDiv.className = "thread-op-content";
+
+        const opMeta = document.createElement("div");
+        opMeta.className = "thread-op-meta";
+        opMeta.textContent = `[${thread.op.timestamp}] ${thread.op.author} says:`; 
+
+        const opText = document.createElement("div");
+        opText.className = "thread-op-text";
+        opText.textContent = thread.op.content;
+
+        opContentDiv.appendChild(opMeta);
+        opContentDiv.appendChild(opText);
+        opDiv.appendChild(opContentDiv);
+
+        // Replies snippet
+        const repliesDiv = document.createElement("div");
+        repliesDiv.className = "thread-replies";
+        const visibleReplies = 2; 
+        let collapsed = !uiState.expandedThreadReplies.has(thread.threadId);
+
+        function renderRepliesSnippet() {
+          repliesDiv.innerHTML = "";
+          const repliesToShow = collapsed
+            ? thread.replies.slice(-visibleReplies)
+            : thread.replies;
+
+          repliesToShow.forEach(reply => {
+            const replyDiv = document.createElement("div");
+            replyDiv.className = "reply";
+            
+            const metaDiv = document.createElement("div");
+            metaDiv.className = "reply-meta";
+            metaDiv.textContent = `[${reply.timestamp}] ${reply.author}:`;
+
+            const textDiv = document.createElement("div");
+            textDiv.className = "reply-text";
+            textDiv.textContent = reply.content;
+
+            replyDiv.appendChild(metaDiv);
+            replyDiv.appendChild(textDiv);
+            repliesDiv.appendChild(replyDiv);
+          });
+
+          if (thread.replies.length > visibleReplies) {
+            const toggleBtn = document.createElement("div");
+            toggleBtn.className = "expand-replies-btn";
+            toggleBtn.textContent = collapsed
+              ? `Expand Replies (${thread.replies.length})`
+              : "Collapse Replies";
+            toggleBtn.onclick = (e) => {
+              e.stopPropagation(); 
+              collapsed = !collapsed;
+              if (!collapsed) {
+                uiState.expandedThreadReplies.add(thread.threadId);
+              } else {
+                uiState.expandedThreadReplies.delete(thread.threadId);
+              }
+              renderRepliesSnippet();
+            };
+            repliesDiv.appendChild(toggleBtn);
+          }
+        }
+        renderRepliesSnippet();
+
+        threadDiv.addEventListener("click", () => {
+          openThreadDetail(thread.threadId);
+        });
+
+        threadDiv.appendChild(opDiv);
+        threadDiv.appendChild(repliesDiv);
+        listView.appendChild(threadDiv);
+      });
+
+      // If we were viewing a thread detail, restore it
+      if (uiState.openThreadId) {
+        openThreadDetail(uiState.openThreadId);
+      }
+    }
+
+    // Replace the createNewThread function with this updated version:
+    async function createNewThread(author, content) {
+      if (!content.trim()) {
+        alert('Please enter thread content');
+        return;
+      }
+
+      try {
+        // Create FormData to handle both text and file data
+        const formData = new FormData();
+        formData.append('author', author);
+        formData.append('content', content);
+        
+        // Add file if one was selected
+        const fileInput = document.getElementById("threadAttachment");
+        if (fileInput && fileInput.files[0]) {
+            formData.append('attachment', fileInput.files[0]);
+        }
+
+        const response = await fetch('/api/forum/thread', {
+            method: 'POST',
+            body: formData // Send as FormData instead of JSON
+        });
+
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+
+        const data = await response.json();
+        
+        // Clear the form and attachment preview
+        const preview = document.getElementById("attachmentPreview");
+        if (preview) {
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+        }
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        forumData = data.threads;
+        renderForumList(forumData);
+
+    } catch (error) {
+        console.error('Error creating thread:', error);
+        alert('Failed to create thread');
+    }
+}
+
+    // Replace the postReplyToThread function with:
+    async function postReplyToThread(threadId, author, content) {
+        const reply = {
+            author,
+            content,
+            timestamp: new Date().toLocaleString()
+        };
+
+        try {
+            const response = await fetch(`/api/forum/reply?thread_id=${threadId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(reply)
+            });
+
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+
+            const data = await response.json();
+            forumData = data.threads;
+            const thread = forumData.find(t => t.threadId === threadId);
+            renderThreadDetail(thread);
+        } catch (error) {
+            console.error('Error posting reply:', error);
+            alert('Failed to post reply');
+        }
+    }
+
+    // Thread detail view
+    async function openThreadDetail(threadId) {
+      try {
+        // Fetch fresh data before showing thread
+        const data = await fetchData();
+        forumData = data.forum;
+        
+        uiState.openThreadId = threadId;
+        document.getElementById("forumListView").classList.add("hidden");
+        const threadView = document.getElementById("forumThreadView");
+        threadView.classList.remove("hidden");
+
+        // Hide new thread button and form, show reply button
+        document.getElementById("newThreadToggleBtn").style.display = "none";
+        document.getElementById("replyToggleBtn").style.display = "block";
+
+        // Hide and clear the new thread form
+        const newThreadForm = document.getElementById("newThreadForm");
+        newThreadForm.style.display = "none";
+        document.getElementById("newThreadAuthor").value = "";
+        document.getElementById("newThreadContent").value = "";
+        // Clear any attachment preview
+        const preview = document.getElementById("attachmentPreview");
+        if (preview) {
+          preview.style.display = 'none';
+          preview.innerHTML = '';
+        }
+        // Clear file input if it exists
+        const fileInput = document.getElementById("threadAttachment");
+        if (fileInput) {
+          fileInput.value = '';
+        }
+
+        // Clear any existing reply form data
+        document.getElementById("replyForm").style.display = "none";
+        document.getElementById("replyAuthor").value = "";
+        document.getElementById("replyContent").value = "";
+
+        const thread = forumData.find(t => t.threadId === threadId);
+        renderThreadDetail(thread);
+
+        // Attach fresh reply form listeners with the correct thread ID
+        attachReplyFormListeners(threadId);
+      } catch (error) {
+        console.error('Error refreshing thread data:', error);
+      }
+    }
+
+    function renderThreadDetail(thread) {
+      const threadView = document.getElementById("forumThreadView");
+      threadView.innerHTML = "";
+
+      // Back to Forum link
+      const backBtn = document.createElement("div");
+      backBtn.className = "back-btn";
+      backBtn.textContent = "← Back to Forum";
+      backBtn.onclick = async () => {
+        // Clear the open thread ID state
+        uiState.openThreadId = null;
+        
+        // Hide the thread view
+        threadView.classList.add("hidden");
+        document.getElementById("forumListView").classList.remove("hidden");
+        
+        // Hide the reply button and form
+        document.getElementById("newThreadToggleBtn").style.display = "block";
+        document.getElementById("replyToggleBtn").style.display = "none";
+        document.getElementById("replyForm").style.display = "none";
+        
+        // Clear any input in the reply form
+        document.getElementById("replyAuthor").value = "";
+        document.getElementById("replyContent").value = "";
+
+        // Refresh the forum data
+        try {
+          const data = await fetchData();
+          updateForum(data.forum);
+        } catch (error) {
+          console.error('Forum refresh failed:', error);
+        }
+      };
+      threadView.appendChild(backBtn);
+
+      // Thread container
+      const detailDiv = document.createElement("div");
+      detailDiv.className = "thread-detail";
+
+      // OP
+      const opDiv = document.createElement("div");
+      opDiv.className = "thread-op";
+      
+      // Handle attachments in thread detail view
+      if (thread.op.attachment) {
+        if (thread.op.attachment.type?.startsWith('image/')) {
+          const opImg = document.createElement("img");
+          opImg.src = thread.op.attachment.url;
+          opImg.alt = thread.op.attachment.name;
+          opImg.onclick = (e) => {
+            e.stopPropagation();
+            window.open(thread.op.attachment.url, '_blank');
+          };
+          opDiv.appendChild(opImg);
+        } else {
+          // For non-image attachments
+          const attachmentDiv = document.createElement("div");
+          attachmentDiv.className = "attachment-info";
+          attachmentDiv.innerHTML = `
+            <div class="file-info">
+              📎 ${thread.op.attachment.name} (${formatFileSize(thread.op.attachment.size)})
+            </div>
+            <div class="file-actions">
+              <a href="${thread.op.attachment.url}" download>Download</a>
+              <a href="${thread.op.attachment.url}" target="_blank">Open</a>
+            </div>
+          `;
+          opDiv.appendChild(attachmentDiv);
+        }
+      }
+
+      const opContentDiv = document.createElement("div");
+      opContentDiv.className = "thread-op-content";
+      const opMeta = document.createElement("div");
+      opMeta.className = "thread-op-meta";
+      opMeta.textContent = `[${thread.op.timestamp}] ${thread.op.author} says:`; 
+      const opText = document.createElement("div");
+      opText.className = "thread-op-text";
+      opText.textContent = thread.op.content;
+      opContentDiv.appendChild(opMeta);
+      opContentDiv.appendChild(opText);
+
+      opDiv.appendChild(opContentDiv);
+
+      // All replies
+      const repliesDiv = document.createElement("div");
+      repliesDiv.className = "thread-replies";
+      thread.replies.forEach(reply => {
+        const replyDiv = document.createElement("div");
+        replyDiv.className = "reply";
+        
+        const metaDiv = document.createElement("div");
+        metaDiv.className = "reply-meta";
+        metaDiv.textContent = `[${reply.timestamp}] ${reply.author}:`;
+
+        const textDiv = document.createElement("div");
+        textDiv.className = "reply-text";
+        textDiv.textContent = reply.content;
+
+        replyDiv.appendChild(metaDiv);
+        replyDiv.appendChild(textDiv);
+        repliesDiv.appendChild(replyDiv);
+      });
+
+      detailDiv.appendChild(opDiv);
+      detailDiv.appendChild(repliesDiv);
+      threadView.appendChild(detailDiv);
+    }
+
+    /* -----------------------------
+       CHAT
+    ----------------------------- */
+    function updateChat(chatMessages) {
+      const chatContainer = document.getElementById("chatMessages");
+      chatContainer.innerHTML = "";
+      chatMessages.forEach(msg => {
+        const div = document.createElement("div");
+        div.textContent = `[${msg.timestamp}] ${msg.sender}: ${msg.message}`;
+        chatContainer.appendChild(div);
+      });
+      // Auto-scroll
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // Replace sendChatMessage function with this:
+    async function sendChatMessage() {
+      const input = document.getElementById("chatInput");
+      const message = input.value.trim();
+      if (!message) return;
+
+      const newMessage = {
+        id: Date.now(),
+        sender: "You",
+        message,
+        timestamp: new Date().toLocaleTimeString()
+      };
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: newMessage })
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // Clear the input field after successful send
+        input.value = '';
+
+        // Fetch fresh data to get the updated chat
+        const data = await fetchData();
+        updateChat(data.chat);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        alert('Failed to send message');
+      }
+    }
+
+    /* -----------------------------
+       AGENTS
+    ----------------------------- */
+    function updateAgents(agents) {
+      const agentsPanel = document.getElementById("agentsPanel");
+      agentsPanel.innerHTML = "<h3>Agents</h3>";
+
+      agents.forEach(agent => {
+        const agentDiv = document.createElement("div");
+        agentDiv.className = "agent";
+
+        // Agent header
+        const header = document.createElement("div");
+        header.className = "agent-header";
+        const name = document.createElement("p");
+        name.className = "agent-name";
+        name.textContent = agent.name;
+        header.appendChild(name);
+
+        agentDiv.appendChild(header);
+
+        // Build collapsible tabs
+        const tabs = createAgentTabs(agent);
+        agentDiv.appendChild(tabs);
+
+        agentsPanel.appendChild(agentDiv);
+      });
+    }
+
+    function createAgentTabs(agentData) {
+      const tabsContainer = document.createElement("div");
+      tabsContainer.className = "agent-tabs";
+
+      function addTab(title, content) {
+        const tabId = `${agentData.name}-${title}`.replace(/\s+/g, '-');
+        const tabTitle = document.createElement("div");
+        tabTitle.className = "tab-title";
+        tabTitle.textContent = title;
+
+        const tabContent = document.createElement("div");
+        tabContent.className = "tab-content";
+        
+        // Check if this tab was previously open
+        if (uiState.openAgentTabs.has(tabId)) {
+          tabContent.classList.add("active");
+        }
+
+        // Handle empty arrays
+        if (Array.isArray(content)) {
+          if (content.length === 0) {
+            const emptyMsg = document.createElement("div");
+            emptyMsg.style.color = "#666";
+            emptyMsg.style.fontStyle = "italic";
+            emptyMsg.textContent = `No ${title} yet`;
+            tabContent.appendChild(emptyMsg);
+          } else {
+            // Reverse array to show newest items first
+            content.slice().reverse().forEach(item => {
+              const li = document.createElement("div");
+              li.style.padding = "4px 0";
+              li.textContent = "• " + item;
+              tabContent.appendChild(li);
+            });
+          }
+        } else {
+          tabContent.textContent = content || `No ${title} available`;
+        }
+
+        tabTitle.addEventListener("click", () => {
+          tabContent.classList.toggle("active");
+          if (tabContent.classList.contains("active")) {
+            uiState.openAgentTabs.add(tabId);
+          } else {
+            uiState.openAgentTabs.delete(tabId);
+          }
+        });
+
+        tabsContainer.appendChild(tabTitle);
+        tabsContainer.appendChild(tabContent);
+      }
+
+      // Add tabs with proper null checks
+      addTab("persona", agentData.persona || "No persona set");
+      addTab("thoughts", Array.isArray(agentData.thoughts) ? agentData.thoughts : []);
+      addTab("activity", Array.isArray(agentData.activity) ? agentData.activity : []);
+
+      return tabsContainer;
+    }
+
+    // Add this code after attachNewThreadFormListeners() function
+    function setupAttachmentHandlers() {
+      const fileInput = document.getElementById("threadAttachment");
+      const attachBtn = document.getElementById("attachFileBtn");
+      const pasteBtn = document.getElementById("pasteImageBtn");
+      const preview = document.getElementById("attachmentPreview");
+      
+      if (!fileInput || !attachBtn || !pasteBtn || !preview) return;
+
+      // Handle file selection
+      attachBtn.addEventListener("click", () => fileInput.click());
+      
+      fileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        previewAttachment(file, preview);
+      });
+
+      // Handle paste
+      pasteBtn.addEventListener("click", () => {
+        navigator.clipboard.read().then(async (items) => {
+          for (const item of items) {
+            for (const type of item.types) {
+              if (type.startsWith('image/')) {
+                const blob = await item.getType(type);
+                const file = new File([blob], "pasted-image.png", { type });
+                previewAttachment(file, preview);
+                return;
+              }
+            }
+          }
+          alert("No image found in clipboard");
+        }).catch(err => {
+          console.error("Failed to read clipboard:", err);
+          alert("Failed to read clipboard. Try using the file upload instead.");
+        });
+      });
+
+      // Global paste handler
+      document.addEventListener('paste', async (e) => {
+        if (!document.getElementById("newThreadForm").contains(document.activeElement)) {
+          return; // Only handle paste when the form has focus
+        }
+        
+        const items = e.clipboardData.items;
+        for (const item of items) {
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            previewAttachment(file, preview);
+            return;
+          }
+        }
+      });
+    }
+
+    function previewAttachment(file, previewElement) {
+      if (!file || !previewElement) return;
+
+      const isImage = file.type.startsWith('image/');
+      previewElement.style.display = 'block';
+      
+      if (isImage) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewElement.innerHTML = `
+            <img src="${e.target.result}" alt="Preview" />
+            <div class="file-info">${file.name} (${formatFileSize(file.size)})</div>
+          `;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        previewElement.innerHTML = `
+          <div class="file-info">
+            📎 ${file.name} (${formatFileSize(file.size)})
+          </div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
