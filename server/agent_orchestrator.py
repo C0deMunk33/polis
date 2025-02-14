@@ -6,6 +6,11 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 import secrets
+
+import warnings
+warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
+
+
 def get_function_schemas():
     return UIInterface().get_function_schemas() + WikiSearch().get_function_schemas() + AgentOrchestrator.get_function_schemas()
 

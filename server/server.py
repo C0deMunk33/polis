@@ -5,6 +5,10 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 
+# Import UIInterface from ui_interface.py instead of using a duplicate version
+from ui_interface import UIInterface
+
+
 app = Flask(__name__)
 
 # Update the UPLOAD_FOLDER to use absolute path
@@ -203,174 +207,9 @@ def uploaded_file(filename):
     # Use the absolute path when serving files
     return send_from_directory(UPLOAD_FOLDER, filename)
 
-class UIInterface:
-    def __init__(self):
-        # Only load active agents (those that haven't left)
-        self.agents = [agent for agent in get_agents() if not agent.get('left', False)]
+# Removed the duplicate UIInterface class – now using the imported UIInterface from ui_interface.py
 
-    def join(self, name: str, persona: str, private_key: str) -> bool:
-        """Agent joins the interface with a name, persona, and private key."""
-        try:
-            # Hash the private key to create a deterministic ID
-            agent_id = str(hash(private_key))
-            
-            # Check if agent already exists and is active
-            if any(agent.get('id') == agent_id and not agent.get('left', False) 
-                  for agent in self.agents):
-                return False
-            
-            # Create new agent
-            new_agent = {
-                "id": agent_id,
-                "name": name,
-                "persona": persona,
-                "thoughts": [],
-                "activity": [],
-                "left": False
-            }
-            
-            # Load all agents to preserve history
-            all_agents = get_agents()
-            
-            # Update or reactivate existing agent with matching ID
-            agent_index = next((i for i, agent in enumerate(all_agents) 
-                              if agent.get('id') == agent_id), None)
-            if agent_index is not None:
-                # Preserve history if agent is rejoining
-                existing_agent = all_agents[agent_index]
-                new_agent['thoughts'] = existing_agent.get('thoughts', [])
-                new_agent['activity'] = existing_agent.get('activity', [])
-                all_agents[agent_index] = new_agent
-            else:
-                all_agents.append(new_agent)
-            
-            # Update local active agents
-            self.agents.append(new_agent)
-            
-            # Save all agents
-            save_json_file(AGENTS_FILE, all_agents)
-            return True
-        except Exception as e:
-            print(f"Error in join: {str(e)}")
-            return False
-
-    def leave(self, name: str, private_key: str) -> bool:
-        """Agent leaves the interface."""
-        try:
-            agent_id = str(hash(private_key))
-            
-            # Load all agents to preserve history
-            all_agents = get_agents()
-            
-            # Mark the agent as left in the full list
-            for agent in all_agents:
-                if agent.get('id') == agent_id and agent['name'] == name:
-                    agent['left'] = True
-                    agent['leftTimestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            # Remove from active agents list
-            self.agents = [agent for agent in self.agents if agent.get('id') != agent_id]
-            
-            # Save all agents
-            save_json_file(AGENTS_FILE, all_agents)
-            return True
-        except Exception as e:
-            print(f"Error in leave: {str(e)}")
-            return False
-
-    def post_to_forum(self, agent_name: str, content: str) -> bool:
-        """Agent posts a new thread to the forum."""
-        try:
-            thread_data = {
-                'threadId': str(uuid.uuid4()),
-                'op': {
-                    'author': f"[Agent] {agent_name}",
-                    'content': content,
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                },
-                'replies': []
-            }
-            
-            forum_threads = get_forum_threads()
-            forum_threads.append(thread_data)
-            save_json_file(FORUM_FILE, forum_threads)
-            return True
-        except Exception as e:
-            print(f"Error in post_to_forum: {str(e)}")
-            return False
-
-    def post_to_chat(self, agent_name: str, content: str) -> bool:
-        """Agent posts a message to the chat."""
-        try:
-            message = {
-                'author': f"[Agent] {agent_name}",
-                'content': content,
-                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            
-            chat_messages = get_chat_messages()
-            chat_messages.append(message)
-            save_json_file(CHAT_FILE, chat_messages)
-            return True
-        except Exception as e:
-            print(f"Error in post_to_chat: {str(e)}")
-            return False
-
-    def add_thought(self, agent_name: str, thought: str, private_key: str) -> bool:
-        """Add a thought to an agent's thoughts list."""
-        try:
-            agent_id = str(hash(private_key))
-            
-            # Find the agent in both active list and full list
-            all_agents = get_agents()
-            for agent in all_agents:
-                if agent.get('id') == agent_id and agent['name'] == agent_name:
-                    if 'thoughts' not in agent:
-                        agent['thoughts'] = []
-                    agent['thoughts'].append(thought)
-                    if len(agent['thoughts']) > 5:  # Keep only last 5 thoughts
-                        agent['thoughts'].pop(0)
-                    
-                    # Update active agents list
-                    for active_agent in self.agents:
-                        if active_agent.get('id') == agent_id:
-                            active_agent['thoughts'] = agent['thoughts']
-                    
-                    save_json_file(AGENTS_FILE, all_agents)
-                    return True
-            return False
-        except Exception as e:
-            print(f"Error in add_thought: {str(e)}")
-            return False
-
-    def add_activity(self, agent_name: str, activity: str, private_key: str) -> bool:
-        """Add an activity to an agent's activity list."""
-        try:
-            agent_id = str(hash(private_key))
-            
-            # Find the agent in both active list and full list
-            all_agents = get_agents()
-            for agent in all_agents:
-                if agent.get('id') == agent_id and agent['name'] == agent_name:
-                    if 'activity' not in agent:
-                        agent['activity'] = []
-                    agent['activity'].append(activity)
-                    if len(agent['activity']) > 5:  # Keep only last 5 activities
-                        agent['activity'].pop(0)
-                    
-                    # Update active agents list
-                    for active_agent in self.agents:
-                        if active_agent.get('id') == agent_id:
-                            active_agent['activity'] = agent['activity']
-                    
-                    save_json_file(AGENTS_FILE, all_agents)
-                    return True
-            return False
-        except Exception as e:
-            print(f"Error in add_activity: {str(e)}")
-            return False
-
-# Create a global interface instance
+# Create a global interface instance using the imported UIInterface
 ui_interface = UIInterface()
 
 if __name__ == '__main__':
