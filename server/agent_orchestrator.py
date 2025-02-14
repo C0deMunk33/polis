@@ -21,7 +21,7 @@ class ToolCall(BaseModel):
 
 class RunPassOutput(BaseModel):
     thoughts: List[str] = Field(description="Your thoughts for this pass.")
-    note: Optional[str] = Field(description="A note to save for later.")
+    notes: List[str] = Field(description="Optional notes to save for later.")
     tool_calls: List[ToolCall] = Field(description="The tools to call. dict contains name and arguments. The results of these calls will be available to you in the next pass, if should_continue is True.")
     instructions_for_next_pass: str = Field(description="This is the prompt you will get for the next pass.")
     clear_message_buffer: bool = Field(description="Whether the message buffer should be cleared, your instructions will be passed into the next pass, and your notes will be preserved.")
@@ -55,6 +55,8 @@ class Agent:
         
 You have no futher requirements or goals other than the ones you give yourself and your persona.
 
+Your name is {self.name}.
+
 You reside in a collaborative environment alongside other agents and human users.
 {persona_str}
 You have access to the following tools and resources to help you explore, learn, and engage with others:
@@ -86,8 +88,8 @@ Please respond in the following format:
             self.notes = [note for i, note in enumerate(self.notes) if i not in response_output.delete_notes]
         if response_output.clear_all_notes:
             self.notes = []
-        if response_output.note:
-            self.notes.append(response_output.note)
+        for note in response_output.notes:
+            self.notes.append(note)
 
         next_pass_instructions = rf"""
 Instructions from your last run:
@@ -235,8 +237,8 @@ class AgentOrchestrator:
         for thought in run_pass_output.thoughts:    
             agent.ui.add_thought(thought)
 
-        if run_pass_output.note:
-            agent.ui.add_activity(f"Note added: {run_pass_output.note}")
+        for note in run_pass_output.notes:
+            agent.ui.add_activity(f"Note added: {note}")
 
 def main():
     orchestrator = AgentOrchestrator("http://localhost:5000", "llama3.1:8b")

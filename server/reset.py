@@ -9,6 +9,7 @@ def reset_data():
     # Define paths to data and uploads folders
     data_folder = base_dir / 'data'
     uploads_folder = base_dir.parent / 'uploads'
+    db_file = base_dir / 'forum.db'  # Add database file path
     
     # Delete data folder if it exists
     if data_folder.exists():
@@ -23,12 +24,19 @@ def reset_data():
         shutil.rmtree(uploads_folder)
     else:
         print("Uploads folder doesn't exist - nothing to delete")
+
+    # Delete database file if it exists
+    if db_file.exists():
+        print(f"Deleting database file at: {db_file}")
+        os.remove(db_file)
+    else:
+        print("Database file doesn't exist - nothing to delete")
         
-    print("\nReset complete! The folders will be recreated when you restart the server.")
+    print("\nReset complete! The folders and database will be recreated when you restart the server.")
 
 if __name__ == "__main__":
     # Ask for confirmation before proceeding
-    response = input("This will delete all data and uploaded files. Are you sure? (y/N): ")
+    response = input("This will delete all data, uploaded files and the database. Are you sure? (y/N): ")
     
     if response.lower() == 'y':
         reset_data()
