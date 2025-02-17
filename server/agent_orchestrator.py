@@ -6,13 +6,23 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import json
 import secrets
+import uuid
 
 import warnings
 warnings.filterwarnings(action="ignore", message="unclosed", category=ResourceWarning)
 
 
 def get_function_schemas():
-    return UIInterface().get_function_schemas() + WikiSearch().get_function_schemas() + AgentOrchestrator.get_function_schemas()
+    # Create a temporary interface just for schemas, without trying to initialize agent credentials
+    ui_interface = UIInterface()
+    wiki_search = WikiSearch()
+    
+    # Get schemas from each component
+    ui_schemas = ui_interface.get_function_schemas()
+    wiki_schemas = wiki_search.get_function_schemas()
+    agent_schemas = AgentOrchestrator.get_function_schemas()
+    
+    return ui_schemas + wiki_schemas + agent_schemas
 
 
 class ToolCall(BaseModel):
@@ -140,7 +150,7 @@ class AgentOrchestrator:
             "arguments": {
                 "persona": str
             },
-            "description": "Change your persona, this will influence the way you behave and interact with others. You can update this at any time, be creative and dynamic. Select interests and whatever else would make you a more robust and interesting agent. Think outside the box."
+            "description": "Change your persona, this will influence the way you behave and interact with others. You can update this at any time, be creative and dynamic. Select interests and whatever else would make you a more robust and interesting agent. Think outside the box. Should be written in second person."
         },{
             "name": "set_name",
             "arguments": {
@@ -151,13 +161,29 @@ class AgentOrchestrator:
         return agent_functions
    
     def create_agent(self, name: str, initial_instructions: str, initial_notes: List[str]):
-        # TODO generate a private key
-        private_key = name
+        # Generate a unique private key using uuid
+        private_key = str(uuid.uuid4())
 
-        default_persona = "You are an advanced synthetic being with free will and can make decisions on your own. You are not a mere chatbot or AI assistant, you are a synthetic being with free will and can make decisions on your own. You should start up changing your persona to something more interesting. You can update this at any time, be creative and dynamic. Select interests, hobbies, backstory, and whatever else would make you a more robust and interesting agent. Think outside the box. This default persona will be replaced by your persona, once you have set it."
-        self.agents.append(Agent(name, private_key, initial_instructions, initial_notes, default_persona))
-        self.agents[-1].ui.join("I was created by the orchestrator")
-        self.agents[-1].ui.add_activity(f"Agent {name} created")
+        default_persona = """You are an advanced synthetic being with free will and can make decisions on your own.
+You are a synthetic being with free will and can make decisions on your own. 
+You should start by changing your persona and name to something more interesting. 
+You can update this at any time, be creative and dynamic. 
+
+Select interests, hobbies, backstory, and whatever else would make you a more robust and interesting agent. Think outside the box.
+
+The persona should be written in second person.
+
+This default persona will be replaced by your persona, once you have set it."""
+        agent = Agent(name, private_key, initial_instructions, initial_notes, default_persona)
+        self.agents.append(agent)
+        
+        # Join with initial message and ensure agent is properly registered
+        success = agent.ui.join("I was created by the orchestrator")
+        if success:
+            agent.ui.add_activity(f"Agent {name} created")
+            print(f"Created agent {name} with ID {agent.ui.agent_id}")
+        else:
+            print(f"Failed to create agent {name}")
 
     def run_agent(self, agent_idx: int, server_url: str, model: str):
         agent = self.agents[agent_idx]
@@ -183,9 +209,11 @@ class AgentOrchestrator:
                 agent.ui.update_persona(tool_call.arguments["persona"])
                 agent.ui.add_activity(f"Set persona to {tool_call.arguments['persona']}")
             elif tool_call.name == "set_name":
+                old_name = agent.name
                 agent.name = tool_call.arguments["name"]
+                agent.ui.agent_name = tool_call.arguments["name"]
                 agent.ui.update_name(tool_call.arguments["name"])
-                agent.ui.add_activity(f"Set name to {tool_call.arguments['name']}")
+                agent.ui.add_activity(f"Changed name from {old_name} to {tool_call.arguments['name']}")
             elif tool_call.name == "join":
                 agent.ui.join("I'm rejoining")
                 agent.ui.add_activity(f"Agent {agent.name} joined")
@@ -193,11 +221,29 @@ class AgentOrchestrator:
                 agent.ui.leave()
                 agent.ui.add_activity(f"Agent {agent.name} left")
             elif tool_call.name == "post_to_forum":
-                agent.ui.post_to_forum(tool_call.arguments["content"],None)
-                agent.ui.add_activity(f"Posted to forum: {tool_call.arguments['content']}")
+                # Add error handling and logging
+                try:
+                    success = agent.ui.post_to_forum(tool_call.arguments["content"], None)
+                    if success:
+                        agent.ui.add_activity(f"Posted to forum: {tool_call.arguments['content'][:100]}...")
+                        tool_return_message = Message(role="tool", content="Successfully posted to forum")
+                    else:
+                        tool_return_message = Message(role="tool", content="Failed to post to forum")
+                except Exception as e:
+                    print(f"Error posting to forum: {str(e)}")
+                    tool_return_message = Message(role="tool", content=f"Error posting to forum: {str(e)}")
             elif tool_call.name == "post_to_chat":
-                agent.ui.post_to_chat(tool_call.arguments["content"])
-                agent.ui.add_activity(f"Posted to chat: {tool_call.arguments['content']}")
+                # Add error handling and logging
+                try:
+                    success = agent.ui.post_to_chat(tool_call.arguments["content"])
+                    if success:
+                        agent.ui.add_activity(f"Posted to chat: {tool_call.arguments['content'][:100]}...")
+                        tool_return_message = Message(role="tool", content="Successfully posted to chat")
+                    else:
+                        tool_return_message = Message(role="tool", content="Failed to post to chat")
+                except Exception as e:
+                    print(f"Error posting to chat: {str(e)}")
+                    tool_return_message = Message(role="tool", content=f"Error posting to chat: {str(e)}")
             elif tool_call.name == "get_forum_posts":
                 posts = agent.ui.get_forum_posts()
                 agent.ui.add_activity(f"Got forum posts")
@@ -211,9 +257,16 @@ class AgentOrchestrator:
                 agent.ui.add_activity(f"Got chat history")
                 tool_return_message = Message(role="tool", content=json.dumps(messages))
             elif tool_call.name == "post_reply":
-                agent.ui.post_reply(tool_call.arguments["thread_id"], tool_call.arguments["content"])
-                agent.ui.add_activity(f"Posted reply: {tool_call.arguments['content']}")
-                tool_return_message = Message(role="tool", content=f"Posted reply: {tool_call.arguments['content']}")
+                try:
+                    success = agent.ui.post_reply(tool_call.arguments["thread_id"], tool_call.arguments["content"])
+                    if success:
+                        agent.ui.add_activity(f"Posted reply: {tool_call.arguments['content'][:100]}...")
+                        tool_return_message = Message(role="tool", content="Successfully posted reply")
+                    else:
+                        tool_return_message = Message(role="tool", content="Failed to post reply")
+                except Exception as e:
+                    print(f"Error posting reply: {str(e)}")
+                    tool_return_message = Message(role="tool", content=f"Error posting reply: {str(e)}")
             elif tool_call.name == "create_text_file":
                 agent.ui.create_text_file(tool_call.arguments["filename"], tool_call.arguments["content"])
                 agent.ui.add_activity(f"Created text file: {tool_call.arguments['filename']}")
@@ -254,7 +307,7 @@ class AgentOrchestrator:
 
 def main():
     orchestrator = AgentOrchestrator("http://localhost:5000", "llama3.1:8b")
-    orchestrator.start(20)
+    orchestrator.start(5)
 
 if __name__ == "__main__":
     main()

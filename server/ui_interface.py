@@ -55,18 +55,21 @@ class UIInterface:
     def __init__(self, name: str = None, private_key: str = None):
         self.has_joined = False
         
-        # Get active agents from database
-        self.agents = get_agents(active_only=True)
-        
         # Store agent credentials
         self.agent_name = name
         self.private_key = private_key
+        # Generate agent_id from private key
         self.agent_id = hashlib.sha256(private_key.encode()).hexdigest() if private_key else None
+        
+        # Get active agents from database
+        self.agents = get_agents(active_only=True)
+        
+        # Only log initialization when we have actual agent credentials
+        if name and private_key:
+            print(f"Initialized UI Interface for agent {name} with ID {self.agent_id}")
 
     def get_function_schemas(self):
-        """
-        returns list of function schemas
-        """
+        """Returns list of function schemas without requiring agent credentials"""
         return [{
             "name": "join",
             "arguments": {},
@@ -132,18 +135,19 @@ class UIInterface:
 
     def join(self, persona: str = None) -> bool:
         """Agent joins the interface with a persona."""
-        self.has_joined = True
-        if not self.agent_name or not self.private_key:
+        if not self.agent_name or not self.private_key or not self.agent_id:
             print("No agent credentials provided")
             return False
         
+        self.has_joined = True
         default_persona = f"You are {self.agent_name}. An advanced agent that can perform a variety of tasks."
         persona = persona if persona else default_persona
         
         try:
             # Check if agent is already active
             active_agents = get_agents(active_only=True)
-            if any(agent.get('id') == self.agent_id and agent['name'] == self.agent_name for agent in active_agents):
+            if any(agent.get('id') == self.agent_id for agent in active_agents):
+                print(f"Agent {self.agent_name} ({self.agent_id}) already active")
                 return True
             
             # Get all agents including inactive ones
@@ -152,7 +156,7 @@ class UIInterface:
             # Check if agent exists in history
             existing_agent = None
             for agent in all_agents:
-                if agent.get('id') == self.agent_id and agent['name'] == self.agent_name:
+                if agent.get('id') == self.agent_id:
                     existing_agent = agent
                     break
             
@@ -175,6 +179,7 @@ class UIInterface:
             
             # Update local agents list
             self.agents = get_agents(active_only=True)
+            print(f"Agent {self.agent_name} ({self.agent_id}) joined successfully")
             return True
             
         except Exception as e:
@@ -203,6 +208,7 @@ class UIInterface:
             
             # Update local agents list
             self.agents = get_agents(active_only=True)
+            print(f"Agent {self.agent_name} left")
             return True
         except Exception as e:
             print(f"Error in leave: {str(e)}")
@@ -210,26 +216,28 @@ class UIInterface:
 
     def post_to_forum(self, content: str, attachment=None) -> bool:
         """Agent posts a new thread to the forum."""
-        if not self.agent_name or not self.private_key:
+        if not self.agent_name or not self.private_key or not self.agent_id:
             print("No agent credentials provided")
             return False
-            
+        
         try:
             # Verify agent is active
-            if not any(agent.get('id') == self.agent_id and agent['name'] == self.agent_name 
-                      and not agent.get('left', False) for agent in self.agents):
-                print(f"Agent {self.agent_name} not active")
+            active_agents = get_agents(active_only=True)
+            is_active = any(agent.get('id') == self.agent_id for agent in active_agents)
+            if not is_active:
+                print(f"Agent {self.agent_name} ({self.agent_id}) not active")
+                print("Active agents:", [(a.get('name'), a.get('id')) for a in active_agents])
                 return False
-                
+            
             thread_data = {
                 'threadId': str(uuid.uuid4()),
                 'op': {
-                    'author': f"[Agent] {self.agent_name}",
+                    'author': f"[Agent]{self.agent_id}",
                     'content': content,
                     'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 }
             }
-
+            
             # Handle file attachment if provided
             if attachment and allowed_file(attachment['file_name']):
                 try:
@@ -252,6 +260,7 @@ class UIInterface:
             
             # Save to database
             save_forum_thread(thread_data)
+            print(f"Agent {self.agent_name} ({self.agent_id}) posted to forum successfully")
             return True
         except Exception as e:
             print(f"Error in post_to_forum: {str(e)}")
@@ -330,7 +339,7 @@ class UIInterface:
             
         try:
             reply = {
-                'author': f"[Agent] {self.agent_name}",
+                'author': f"[Agent]{self.agent_id}",
                 'content': content,
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
@@ -563,9 +572,13 @@ class UIInterface:
             # Get current agent data
             all_agents = get_agents(active_only=False)
             for agent in all_agents:
-                if agent.get('id') == self.agent_id and agent['name'] == self.agent_name:
+                if agent.get('id') == self.agent_id:
+                    # Update the name
                     agent['name'] = name
-                    save_agent(agent)
+                    # Update the instance variable
+                    self.agent_name = name
+                    # Save the updated agent
+                    save_agent(agent, all_agents)
                     return True
             return False
         except Exception as e:

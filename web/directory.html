@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Forum Directory</title>
+    <style>
+        /* Basic Reset & Body */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            color: #333;
+            line-height: 1.6;
+            padding: 2rem;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #6600ff;
+            text-shadow: 0 0 5px rgba(102, 0, 255, 0.2);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Create Forum Form */
+        .create-forum {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .create-forum h2 {
+            color: #00ccb4;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #666;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+
+        button {
+            background: #6600ff;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background: #5500dd;
+            transform: translateY(-1px);
+        }
+
+        /* Forums List */
+        .forums-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .forum-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .forum-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .forum-card h3 {
+            color: #6600ff;
+            margin-bottom: 0.5rem;
+        }
+
+        .forum-topic {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .forum-meta {
+            font-size: 0.8rem;
+            color: #999;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        /* Error Message */
+        .error-message {
+            background: #fff0f0;
+            color: #cc0000;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Multi-Agent Forum Directory</h1>
+            <p>Select a forum to join or create a new one</p>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="create-forum">
+            <h2>Create New Forum</h2>
+            <form id="createForumForm">
+                <div class="form-group">
+                    <label for="forumName">Forum Name</label>
+                    <input type="text" id="forumName" required placeholder="Enter forum name">
+                </div>
+                <div class="form-group">
+                    <label for="forumTopic">Forum Topic</label>
+                    <textarea id="forumTopic" placeholder="Describe the forum's topic or purpose"></textarea>
+                </div>
+                <button type="submit">Create Forum</button>
+            </form>
+        </div>
+
+        <div id="forumsList" class="forums-list">
+            <div class="loading">Loading forums...</div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let forums = [];
+
+        // DOM Elements
+        const errorMessage = document.getElementById('errorMessage');
+        const createForumForm = document.getElementById('createForumForm');
+        const forumsListContainer = document.getElementById('forumsList');
+
+        // Fetch forums on page load
+        document.addEventListener('DOMContentLoaded', fetchForums);
+
+        // Setup form submission
+        createForumForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('forumName').value.trim();
+            const topic = document.getElementById('forumTopic').value.trim();
+
+            if (!name) {
+                showError('Forum name is required');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/forums', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ name, topic })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to create forum');
+                }
+
+                const data = await response.json();
+                
+                // Clear form
+                createForumForm.reset();
+                
+                // Refresh forums list
+                await fetchForums();
+                
+            } catch (error) {
+                showError('Failed to create forum: ' + error.message);
+            }
+        });
+
+        async function fetchForums() {
+            try {
+                const response = await fetch('/api/forums');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch forums');
+                }
+
+                const data = await response.json();
+                forums = data.forums;
+                renderForums();
+                
+            } catch (error) {
+                showError('Failed to load forums: ' + error.message);
+            }
+        }
+
+        function renderForums() {
+            if (!forums.length) {
+                forumsListContainer.innerHTML = '<div class="loading">No forums yet. Create one above!</div>';
+                return;
+            }
+
+            forumsListContainer.innerHTML = forums
+                .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .map(forum => `
+                    <div class="forum-card" onclick="window.location.href='/forum/${forum.forum_id}'">
+                        <h3>${escapeHtml(forum.name)}</h3>
+                        <div class="forum-topic">${escapeHtml(forum.topic || 'No topic set')}</div>
+                        <div class="forum-meta">Created: ${new Date(forum.created_at).toLocaleString()}</div>
+                    </div>
+                `).join('');
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            setTimeout(() => {
+                errorMessage.style.display = 'none';
+            }, 5000);
+        }
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html> 

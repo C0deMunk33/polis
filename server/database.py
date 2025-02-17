@@ -102,15 +102,38 @@ def get_forum_threads():
     conn = get_db()
     c = conn.cursor()
     
-    # Get all threads
-    threads = c.execute('SELECT * FROM forum_threads').fetchall()
+    # Get all threads with current agent names
+    threads = c.execute('''
+        SELECT t.*, 
+               CASE 
+                   WHEN t.op_author LIKE '[Agent]%' THEN 
+                       COALESCE(
+                           (SELECT '[Agent] ' || a.name 
+                            FROM agents a 
+                            WHERE a.agent_id = SUBSTR(t.op_author, 8)), 
+                           t.op_author)
+                   ELSE t.op_author 
+               END as op_author
+        FROM forum_threads t
+    ''').fetchall()
     
-    # Get replies for each thread
+    # Get replies for each thread with current agent names
     for thread in threads:
-        replies = c.execute(
-            'SELECT * FROM forum_replies WHERE thread_id = ? ORDER BY timestamp',
-            (thread['thread_id'],)
-        ).fetchall()
+        replies = c.execute('''
+            SELECT r.*,
+                   CASE 
+                       WHEN r.author LIKE '[Agent]%' THEN 
+                           COALESCE(
+                               (SELECT '[Agent] ' || a.name 
+                                FROM agents a 
+                                WHERE a.agent_id = SUBSTR(r.author, 8)), 
+                               r.author)
+                       ELSE r.author 
+                   END as author
+            FROM forum_replies r 
+            WHERE r.thread_id = ? 
+            ORDER BY timestamp
+        ''', (thread['thread_id'],)).fetchall()
         
         # Convert attachment JSON strings back to dictionaries
         if thread['op_attachment']:
@@ -190,29 +213,40 @@ def get_chat_messages(limit=None):
     conn.close()
     return messages
 
-def save_agent(agent_data):
+def save_agent(agent_data, all_agents=None):
     """Save or update an agent in the database"""
     conn = get_db()
     c = conn.cursor()
     
-    c.execute('''
-        INSERT OR REPLACE INTO agents 
-        (agent_id, name, persona, thoughts, activity, latest_activity, left, joined_at, left_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        agent_data.get('id'),
-        agent_data.get('name'),
-        agent_data.get('persona'),
-        json.dumps(agent_data.get('thoughts', [])),
-        json.dumps(agent_data.get('activity', [])),
-        agent_data.get('latestActivity'),
-        agent_data.get('left', False),
-        agent_data.get('joinedAt'),
-        agent_data.get('leftTimestamp')
-    ))
-    
-    conn.commit()
-    conn.close()
+    try:
+        if all_agents is not None:
+            # First delete the old agent entry
+            c.execute('DELETE FROM agents WHERE agent_id = ?', (agent_data.get('id'),))
+            
+        # Insert or update the agent
+        c.execute('''
+            INSERT OR REPLACE INTO agents 
+            (agent_id, name, persona, thoughts, activity, latest_activity, left, joined_at, left_timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            agent_data.get('id'),
+            agent_data.get('name'),
+            agent_data.get('persona'),
+            json.dumps(agent_data.get('thoughts', [])),
+            json.dumps(agent_data.get('activity', [])),
+            agent_data.get('latestActivity'),
+            agent_data.get('left', False),
+            agent_data.get('joinedAt'),
+            agent_data.get('leftTimestamp')
+        ))
+        
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"Error saving agent: {str(e)}")
+        return False
+    finally:
+        conn.close()
 
 def get_agents(active_only=True):
     """Get all agents, optionally filtering to only active ones"""

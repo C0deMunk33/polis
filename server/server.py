@@ -8,7 +8,9 @@ from werkzeug.utils import secure_filename
 from ui_interface import UIInterface
 from database import get_forum_threads, get_chat_messages, get_agents, save_forum_thread, save_forum_reply, save_chat_message
 
-app = Flask(__name__)
+app = Flask(__name__, 
+           static_folder='../web',  # Path to static files
+           static_url_path='')      # Empty string means serve from root URL
 
 # Update the UPLOAD_FOLDER to use absolute path
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'uploads')
@@ -155,8 +157,5 @@ def uploaded_file(filename):
 ui_interface = UIInterface()
 
 if __name__ == '__main__':
-    # Configure Flask to serve static files from the 'web' directory
-    app.static_folder = '../web'
-    
     # Run the server
     app.run(port=3000, debug=True) 
