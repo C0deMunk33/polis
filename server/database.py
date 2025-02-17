@@ -53,6 +53,7 @@ def init_db():
             persona TEXT,
             thoughts TEXT,
             activity TEXT,
+            latest_activity TEXT,
             left BOOLEAN DEFAULT FALSE,
             joined_at TEXT,
             left_timestamp TEXT,
@@ -196,14 +197,15 @@ def save_agent(agent_data):
     
     c.execute('''
         INSERT OR REPLACE INTO agents 
-        (agent_id, name, persona, thoughts, activity, left, joined_at, left_timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (agent_id, name, persona, thoughts, activity, latest_activity, left, joined_at, left_timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         agent_data.get('id'),
         agent_data.get('name'),
         agent_data.get('persona'),
         json.dumps(agent_data.get('thoughts', [])),
         json.dumps(agent_data.get('activity', [])),
+        agent_data.get('latestActivity'),
         agent_data.get('left', False),
         agent_data.get('joinedAt'),
         agent_data.get('leftTimestamp')
@@ -218,9 +220,9 @@ def get_agents(active_only=True):
     c = conn.cursor()
     
     if active_only:
-        agents = c.execute('SELECT * FROM agents WHERE left = 0').fetchall()
+        agents = c.execute('SELECT * FROM agents WHERE left = 0 ORDER BY latest_activity DESC').fetchall()
     else:
-        agents = c.execute('SELECT * FROM agents').fetchall()
+        agents = c.execute('SELECT * FROM agents ORDER BY latest_activity DESC').fetchall()
     
     # Convert JSON strings back to lists
     for agent in agents:
@@ -229,11 +231,13 @@ def get_agents(active_only=True):
         agent['id'] = agent['agent_id']
         agent['joinedAt'] = agent['joined_at']
         agent['leftTimestamp'] = agent['left_timestamp']
+        agent['latestActivity'] = agent['latest_activity']
         
         # Clean up raw database fields
         del agent['agent_id']
         del agent['joined_at']
         del agent['left_timestamp']
+        del agent['latest_activity']
     
     conn.close()
     return agents

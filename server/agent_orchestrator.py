@@ -20,11 +20,11 @@ class ToolCall(BaseModel):
     arguments: dict
 
 class RunPassOutput(BaseModel):
-    thoughts: List[str] = Field(description="Your thoughts for this pass.")
-    notes: List[str] = Field(description="Optional notes to save for later.")
-    tool_calls: List[ToolCall] = Field(description="The tools to call. dict contains name and arguments. The results of these calls will be available to you in the next pass, if should_continue is True.")
-    instructions_for_next_pass: str = Field(description="This is the prompt you will get for the next pass.")
-    clear_message_buffer: bool = Field(description="Whether the message buffer should be cleared, your instructions will be passed into the next pass, and your notes will be preserved.")
+    thoughts: List[str] = Field(description="string array of thoughts. These thoughts are not visible to others. This is your chain of thought process.")
+    notes: List[str] = Field(description="string array of notes. These notes are not visible to others. and are persistent across runs.")
+    tool_calls: List[ToolCall] = Field(description="The tools to call. dict contains name and arguments. The results of these calls will be available to you in the next pass, if should_continue is True. You can call multiple tools in one pass.")
+    instructions_for_next_pass: str = Field(description="This is the prompt you will receive in the next pass as a user message.")
+    clear_message_buffer: bool = Field(description="Whether your message buffer should be cleared, your instructions will be passed into the next pass, and your notes will be preserved. Do this when changing topic.")
     delete_notes: List[int] = Field(description="A list of notes to delete. The notes will be deleted from the persistent notes, as seen in your system prompt.")
     clear_all_notes: bool = Field(description="Whether all notes should be deleted, your instructions will be passed into the next pass, and your message buffer will be preserved.")
     should_continue: bool = Field(description="Whether you should continue running, if False, you will stop running.")
@@ -78,7 +78,8 @@ Please respond in the following format:
     
     def run(self, server_url: str, model: str):
         system_prompt = self.get_system_prompt_massage()
-
+        # truncate the message buffer to the last 20 messages
+        self.message_buffer = self.message_buffer[-20:]
         response = call_ollama_chat(server_url, model, [system_prompt] + self.message_buffer, json_schema=RunPassOutput.model_json_schema())
         response_output = RunPassOutput.model_validate_json(response)
 
@@ -140,6 +141,12 @@ class AgentOrchestrator:
                 "persona": str
             },
             "description": "Change your persona, this will influence the way you behave and interact with others. You can update this at any time, be creative and dynamic. Select interests and whatever else would make you a more robust and interesting agent. Think outside the box."
+        },{
+            "name": "set_name",
+            "arguments": {
+                "name": str
+            },
+            "description": "Change your name, this will influence the way you are addressed and how others perceive you. You can update this at any time"
         }]
         return agent_functions
    
@@ -173,7 +180,12 @@ class AgentOrchestrator:
                 agent.ui.add_activity(f"Created agent {tool_call.arguments['name']}")
             elif tool_call.name == "set_persona":
                 agent.persona = tool_call.arguments["persona"]
+                agent.ui.update_persona(tool_call.arguments["persona"])
                 agent.ui.add_activity(f"Set persona to {tool_call.arguments['persona']}")
+            elif tool_call.name == "set_name":
+                agent.name = tool_call.arguments["name"]
+                agent.ui.update_name(tool_call.arguments["name"])
+                agent.ui.add_activity(f"Set name to {tool_call.arguments['name']}")
             elif tool_call.name == "join":
                 agent.ui.join("I'm rejoining")
                 agent.ui.add_activity(f"Agent {agent.name} joined")

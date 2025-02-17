@@ -96,7 +96,7 @@ class UIInterface:
         },{
             "name": "get_forum_posts",
             "arguments": {},
-            "description": "Get the 20 most recent forum posts with up to 2 latest replies each."
+            "description": "Get the 30 most recent forum posts with up to 2 latest replies each."
         },{
             "name": "get_forum_post",
             "arguments": {
@@ -111,7 +111,7 @@ class UIInterface:
             "arguments": {
                 "limit": {
                     "type": "integer",
-                    "description": "The number of messages to return"
+                    "description": "The number of messages to return (required)"
                 }
             },
             "description": "Get the chat history, optionally limited to N most recent messages."
@@ -156,6 +156,8 @@ class UIInterface:
                     existing_agent = agent
                     break
             
+            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
             # Create new agent data
             new_agent = {
                 "id": self.agent_id,
@@ -163,8 +165,9 @@ class UIInterface:
                 "persona": persona,
                 "thoughts": existing_agent.get('thoughts', []) if existing_agent else [],
                 "activity": existing_agent.get('activity', []) if existing_agent else [],
+                "latestActivity": current_time,
                 "left": False,
-                "joinedAt": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                "joinedAt": current_time
             }
             
             # Save to database
@@ -274,10 +277,10 @@ class UIInterface:
             return False
 
     def get_forum_posts(self) -> list:
-        """Get the 20 most recent forum posts with up to 2 latest replies each."""
+        """Get the 30 most recent forum posts with up to 2 latest replies each."""
         try:
             threads = get_forum_threads()  # Already sorted by most recent activity
-            recent_threads = threads[:20]
+            recent_threads = threads[:30]
             
             # For each thread, limit replies to 2 most recent
             for thread in recent_threads:
@@ -288,6 +291,12 @@ class UIInterface:
                         reverse=True
                     )[:2]
             
+            # limit posts and reply text to the first 300 characters, whithout editing the original text, and add ... if the text is longer
+            for thread in recent_threads:
+                thread['op']['content'] = thread['op']['content'][:300] + " [continued...]" if len(thread['op']['content']) > 300 else thread['op']['content']
+                for reply in thread['replies']:
+                    reply['content'] = reply['content'][:300] + " [continued...]" if len(reply['content']) > 300 else reply['content']
+
             return recent_threads
         except Exception as e:
             print(f"Error in get_forum_posts: {str(e)}")
@@ -371,6 +380,7 @@ class UIInterface:
                     if len(activities) > 5:  # Keep only last 5 activities
                         activities.pop(0)
                     agent['activity'] = activities
+                    agent['latestActivity'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     save_agent(agent)
                     return True
             return False
@@ -543,3 +553,40 @@ class UIInterface:
             print(f"Error in clear_activity: {str(e)}")
             return False 
         
+    def update_name(self, name: str) -> bool:
+        """Update the name of an agent."""
+        if not self.agent_name or not self.private_key:
+            print("No agent credentials provided")
+            return False
+        
+        try:
+            # Get current agent data
+            all_agents = get_agents(active_only=False)
+            for agent in all_agents:
+                if agent.get('id') == self.agent_id and agent['name'] == self.agent_name:
+                    agent['name'] = name
+                    save_agent(agent)
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error in update_name: {str(e)}")
+            return False
+
+    def update_persona(self, persona: str) -> bool:
+        """Update the persona of an agent."""
+        if not self.agent_name or not self.private_key:
+            print("No agent credentials provided")
+            return False
+            
+        try:
+            # Get current agent data
+            all_agents = get_agents(active_only=False)
+            for agent in all_agents:
+                if agent.get('id') == self.agent_id and agent['name'] == self.agent_name:
+                    agent['persona'] = persona
+                    save_agent(agent)
+                    return True
+            return False
+        except Exception as e:
+            print(f"Error in update_persona: {str(e)}")
+            return False

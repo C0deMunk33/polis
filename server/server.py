@@ -130,6 +130,9 @@ def send_message():
     try:
         message = request.json.get('message')
         
+        # Add properly formatted timestamp to message
+        message['timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         # Save message to database
         save_chat_message(message)
         
